@@ -147,24 +147,42 @@ update occurred, not counting content."
            for new-date = (elfeed-entry-date entry)
            for original-date = (and original (elfeed-entry-date original))
            do (elfeed-deref-entry entry)
+           do (elfeed-tube-log 'debug "[elfeed-db-add id: %s]" id)
+           do (elfeed-tube-log 'debug "[elfeed-db-add original: %s]" original)
+           do (elfeed-tube-log 'debug "[elfeed-db-add new-date: %s]" new-date)
+           do (elfeed-tube-log 'debug "[elfeed-db-add original-date: %s]" original-date)
            when original count
-           (if (= new-date original-date)
+           (if (and original-date (= new-date original-date))
+               (progn
+                 (elfeed-tube-log 'debug "[elfeed-db-add when if: %s]" 1)
+                 (elfeed-entry-merge original entry))
+             (progn
+               (elfeed-tube-log 'debug "[elfeed-db-add when if: %s]" 0)
+               (condition-case nil
+                   (if (avl-tree-member elfeed-db-index id)
+                       (avl-tree-delete elfeed-db-index id)
+                     (elfeed-tube-log 'debug "[elfeed-db-add %s not found in the tree.]" id))))
+             (prog1
+                 (elfeed-tube-log 'debug "[elfeed-db-add when if: %s]" "prog1")
                (elfeed-entry-merge original entry)
-             (avl-tree-delete elfeed-db-index id)
-             (prog1 (elfeed-entry-merge original entry)
                (avl-tree-enter elfeed-db-index id)))
            into change-count
            else count
-           (setf (gethash id elfeed-db-entries) entry)
+           (progn
+             (elfeed-tube-log 'debug "[elfeed-db-add else: %s]" 1)
+             (setf (gethash id elfeed-db-entries) entry))
            into change-count
            and do
            (progn
+             (elfeed-tube-log 'debug "[elfeed-db-add and do: %s]" 1)
              (avl-tree-enter elfeed-db-index id)
              (cl-loop for hook in elfeed-new-entry-hook
                       do (funcall hook entry)))
            finally
            (unless (zerop change-count)
-             (elfeed-db-set-update-time)))
+             (elfeed-tube-log 'debug "[elfeed-db-add finally: %s]" 1)
+             (elfeed-db-set-update-time))
+           )
   :success)
 
 (defun elfeed-entry-feed (entry)
@@ -340,10 +358,10 @@ The FEED-OR-ID may be a feed struct or a feed ID (url)."
 (defun elfeed-db--empty ()
   "Create an empty database object."
   `(:version ,elfeed-db-version
-    :feeds ,(make-hash-table :test 'equal)
-    :entries ,(make-hash-table :test 'equal)
-    ;; Compiler may warn about this (bug#15327):
-    :index ,(avl-tree-create #'elfeed-db-compare)))
+             :feeds ,(make-hash-table :test 'equal)
+             :entries ,(make-hash-table :test 'equal)
+             ;; Compiler may warn about this (bug#15327):
+             :index ,(avl-tree-create #'elfeed-db-compare)))
 
 (defun elfeed-db--dummy ()
   "Create an empty dummy database for Emacs 25 and earlier."
